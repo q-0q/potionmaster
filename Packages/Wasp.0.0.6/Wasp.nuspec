@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>Wasp</id>
+    <version>0.0.6</version>
+    <title>Wasp</title>
+    <authors>q-0q</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <readme>README.md</readme>
+    <description>Lightweight state machine library for game
+development</description>
+    <repository type="git" commit="1fee69fb137a9a9017e5bd86f57cb44961c12006" />
+    <dependencies>
+      <group targetFramework=".NETFramework4.7.1" />
+      <group targetFramework=".NETFramework4.8" />
+    </dependencies>
+  </metadata>
+</package>
