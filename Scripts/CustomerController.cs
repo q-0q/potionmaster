@@ -68,7 +68,7 @@ public class CustomerController : MonoBehaviour
 
             Machine.Configure(State.Searching)
                 .Permit(Trigger.Locate, State.Interested)
-                .Permit(Trigger.Arrive, State.Idle)
+                .Permit(Trigger.ArriveAtItem, State.Idle)
                 .PermitReentry(Trigger.Stuck)
                 .OnEntry(ChooseRandomNearbyDestination)
                 .SubstateOf(State.Walking);
@@ -78,12 +78,12 @@ public class CustomerController : MonoBehaviour
                 .Permit(Trigger.Timeout, State.Searching);
 
             Machine.Configure(State.Interested)
-                .Permit(Trigger.Arrive, State.Interacting)
+                .Permit(Trigger.ArriveAtItem, State.AcquiringItem)
                 .Permit(Trigger.Timeout, State.Searching)
                 .OnEntry(UpdateDestination)
                 .SubstateOf(State.Walking);
 
-            Machine.Configure(State.Interacting)
+            Machine.Configure(State.AcquiringItem)
                 .Permit(Trigger.Acquire, State.Searching)
                 .Permit(Trigger.Timeout, State.Searching)
                 .OnExitFrom(Trigger.Acquire, OnFinishInteracting);
@@ -163,7 +163,7 @@ public class CustomerController : MonoBehaviour
                 var distance = Vector3.Distance(transform.position, _destination);
                 if (distance < arrivalDistance)
                 {
-                    Machine.Fire(Trigger.Arrive);
+                    Machine.Fire(Trigger.ArriveAtItem);
                 }
             }
 
@@ -195,7 +195,7 @@ public class CustomerController : MonoBehaviour
             
             // Acquire
             {
-                if (Machine.IsInState(State.Interacting) && _timeInState > acquireTime)
+                if (Machine.IsInState(State.AcquiringItem) && _timeInState > acquireTime)
                 {
                     Machine.Fire(Trigger.Acquire, new AcquireTriggerParam() { Item = _currentCustomerTarget.interest });
                 }
@@ -244,21 +244,21 @@ public class CustomerController : MonoBehaviour
     {
         Assert.IsNotNull(triggerParams);
         var acquireTriggerParam = (AcquireTriggerParam)triggerParams;
-        interests.Remove(acquireTriggerParam.Item);
-        
-        inventory.Add(acquireTriggerParam.Item);
+        var item = acquireTriggerParam.Item;
+        interests.Remove(item);
 
-        if (interests.Count == 0)
+        if (item == "Checkout")
         {
-            if (acquireTriggerParam.Item == "Checkout")
-            {
-                interests.Add("Exit");
-            }
-            else if (acquireTriggerParam.Item == "Exit")
-            {
-                Destroy(gameObject);
-            }
-            else
+            interests.Add("Exit");
+        }
+        else if (item == "Exit")
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            inventory.Add(item);
+            if (interests.Count == 0)
             {
                 interests.Add("Checkout");
             }
@@ -297,7 +297,8 @@ public class CustomerController : MonoBehaviour
         Searching,
         Idle,
         Interested,
-        Interacting,
+        AcquiringItem,
+        CheckingOut,
         Talking
     }
 
@@ -305,7 +306,9 @@ public class CustomerController : MonoBehaviour
     {
         Locate,
         Timeout,
-        Arrive,
+        ArriveAtItem,
+        ArriveAtCheckout,
+        ArriveAtExit,
         Acquire,
         Stuck,
         Checkout
@@ -313,6 +316,6 @@ public class CustomerController : MonoBehaviour
 
     private void OnDestroy()
     {
-        Destroy(_destinationDebug.gameObject);
+        if (_destinationDebug != null) Destroy(_destinationDebug.gameObject);
     }
 }
