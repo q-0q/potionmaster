@@ -7,38 +7,31 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Lit Variant
+  m_Name: Lit Variant 4 Variant
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
-  m_Parent: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_ModifiedSerializedProperties: 16
-  m_ValidKeywords:
-  - _ALPHAPREMULTIPLY_ON
-  - _SURFACE_TYPE_TRANSPARENT
+  m_Parent: {fileID: 2100000, guid: 953f3bf5795e0484a9e8e6ba7a7c83e8, type: 2}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3000
+  m_CustomRenderQueue: -1
   stringTagMap:
-    RenderType: Transparent
-  disabledShaderPasses:
-  - DepthOnly
-  - SHADOWCASTER
+    RenderType: Opaque
+  disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _DstBlend: 10
-    - _DstBlendAlpha: 10
-    - _Surface: 1
-    - _ZWrite: 0
+    - _Smoothness: 0.37
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 0.36078432}
-    - _Color: {r: 1, g: 1, b: 1, a: 0.36078432}
+    - _BaseColor: {r: 1, g: 0.9309841, b: 0.8066038, a: 1}
+    - _Color: {r: 1, g: 0.9309841, b: 0.8066038, a: 1}
   m_BuildTextureStacks: []
---- !u!114 &4349102868571387559
+--- !u!114 &1174970358577361456
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}

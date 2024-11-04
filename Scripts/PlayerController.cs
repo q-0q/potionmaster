@@ -18,6 +18,7 @@ public class PlayerController : MonoBehaviour
 
     public float moveSpeed = 20f;
     public float lookSpeed = 20f;
+    [FormerlySerializedAs("verticalSpeed")] public float flySpeed = 4f;
     
     public float panTiltAmount = 20f;
     public float panTiltRecoveryStrength = 20f;
@@ -60,6 +61,11 @@ public class PlayerController : MonoBehaviour
         Vector3 moveVector = new Vector3(moveVector2.x, 0, moveVector2.y);
         moveVector = _orientation.rotation * moveVector;
         transform.position += moveVector * (moveSpeed * Time.deltaTime);
+        
+        Vector2 flyVector2 = _playerInput.actions["Fly"].ReadValue<Vector2>();
+        Vector3 flyVector = new Vector3(0, flyVector2.y, 0);
+        flyVector = _orientation.rotation * flyVector;
+        transform.position += flyVector * (flySpeed * Time.deltaTime);
 
         Vector2 lookDelta2 = _playerInput.actions["Look"].ReadValue<Vector2>();
         Vector3 currentOrientationEulers = _orientation.localRotation.eulerAngles;
@@ -82,7 +88,7 @@ public class PlayerController : MonoBehaviour
         _cameraLockTransform.localPosition = new Vector3(0, Mathf.Sin(Time.time * bobSpeed) * bobAmount * _bobWeight, 0);
         _cameraLockTransform.LookAt(_lookAt, _cameraHolder.up);
 
-        if (Input.GetKeyDown(KeyCode.LeftShift))
+        if (Input.GetKeyDown(KeyCode.P))
         {
             Instantiate(Obstacle, transform.position, _orientation.rotation);
         }
