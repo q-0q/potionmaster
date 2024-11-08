@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using TMPro;
 using Unity.AI.Navigation;
 using UnityEngine;
@@ -17,22 +18,25 @@ public class PlayerControllerNew : MonoBehaviour
     // State
     private float _timeInState;
     private Vector3 _moveVector; 
+    private Vector3 _lookRayCastPosition;
     
     // Parameters
-    public float moveSpeed = 20f;
-    public float lookSpeed = 20f;
+    public float moveSpeed = 4f;
+    public float lookSpeed = 350f;
     public float flySpeed = 4f;
-    public float panTiltAmount = 20f;
-    public float panTiltRecoveryStrength = 20f;
+    public float panTiltAmount = 2f;
+    public float panTiltRecoveryStrength = 9f;
     private float _panTiltTarget = 0;
-    public float bobAmount = 20f;
-    public float bobSpeed = 20f;
+    public float bobAmount = 0.035f;
+    public float bobSpeed = 15f;
     private float _bobWeight = 0f;
     private float _bobTargetWeight = 0f;
-    public float bobRampSpeed = 5f;
+    public float bobRampSpeed = 15f;
     public float inventoryLookAngle = 52f;
-    public float inventoryLookAngleSpeed = 5f;
-    public float inventoryTransitionDuration = 0.2f;
+    public float inventoryLookAngleSpeed = 18f;
+    public float inventoryTransitionDuration = 0.25f;
+    public float inventoryStartRotation = 30f;
+    public float buildDistance = 6f;
     public GameObject BuiltItemPrefab;
     
     // Control
@@ -51,6 +55,7 @@ public class PlayerControllerNew : MonoBehaviour
     private GameObject _inventoryModel;
     private GameObject _ghostBuildItem;
     public static event Action OnBuildItem;
+    private Transform _debugBall;
     
 
 
@@ -88,6 +93,8 @@ public class PlayerControllerNew : MonoBehaviour
             _lookAt = _cameraHolder.Find("LookAt");
             _stateTmp = transform.Find("Canvas").GetComponentInChildren<TextMeshProUGUI>();
             _inventoryModel = GetComponentInChildren<PlayerInventoryModel>().gameObject;
+            _debugBall = transform.Find("DebugBall");
+            _debugBall.SetParent(null);
         }
 
 
@@ -97,7 +104,7 @@ public class PlayerControllerNew : MonoBehaviour
             Machine.OnTransitionCompleted(OnTransitionCompleted);
 
             Machine.Configure(State.InWorld)
-                .Permit(Trigger.ToggleInventory, State.InventoryOpening);
+                .Permit(Trigger.PressInteractKey, State.InventoryOpening);
             
             Machine.Configure(State.InventoryOpening)
                 .OnEntry(OnStartInventoryOpening)
@@ -107,7 +114,7 @@ public class PlayerControllerNew : MonoBehaviour
             Machine.Configure(State.InventoryOpen)
                 .OnEntry(OnInventoryFinishOpening)
                 .OnExit(OnInventoryStartClosing)
-                .Permit(Trigger.ToggleInventory, State.InventoryClosingToWorld)
+                .Permit(Trigger.PressInteractKey, State.InventoryClosingToWorld)
                 .Permit(Trigger.SelectItem, State.InventoryClosingToGhostItem);
 
             Machine.Configure(State.InventoryClosing)
@@ -121,11 +128,17 @@ public class PlayerControllerNew : MonoBehaviour
             Machine.Configure(State.InventoryClosingToGhostItem)
                 .SubstateOf(State.InventoryClosing)
                 .OnEntry(SetGhostItem)
-                .Permit(Trigger.Timeout, State.MovingGhostItem);
+                .Permit(Trigger.Timeout, State.PlanningBuildCannotPlace);
             
-            Machine.Configure(State.MovingGhostItem)
-                .OnExitFrom(Trigger.ToggleInventory, BuildGhostItem)
-                .Permit(Trigger.ToggleInventory, State.InWorld);
+            Machine.Configure(State.PlanningBuildCanPlace)
+                .OnExitFrom(Trigger.PressInteractKey, BuildGhostItem)
+                .Permit(Trigger.PressInteractKey, State.InWorld)
+                .Permit(Trigger.LookAtAir, State.PlanningBuildCannotPlace)
+                .SubstateOf(State.PlanningBuild);
+            
+            Machine.Configure(State.PlanningBuildCannotPlace)
+                .Permit(Trigger.LookAtGround, State.PlanningBuildCanPlace)
+                .SubstateOf(State.PlanningBuild);
 
         }
 
@@ -137,7 +150,9 @@ public class PlayerControllerNew : MonoBehaviour
                 { State.InventoryOpen , InventoryOpenBehavior},
                 { State.InventoryClosing , InventoryClosingBehavior },
                 { State.InventoryOpening , InventoryOpeningBehavior },
-                { State.MovingGhostItem , MovingGhostItemBehavior }
+                { State.PlanningBuild , PlanningBuildBehavior },
+                { State.PlanningBuildCanPlace , CanBuildBehavior} ,
+                { State.PlanningBuildCannotPlace , CannotBuildBehavior}
             };
         }
         
@@ -146,28 +161,6 @@ public class PlayerControllerNew : MonoBehaviour
             _moveVector = Vector3.zero;
             _inventoryModel.SetActive(false);
         }
-    }
-
-    private void SetGhostItem(TriggerParams? triggerParams)
-    {
-        if (triggerParams is null) return;
-        string interest = ((StringTriggerParam)triggerParams).str;
-        _ghostBuildItem = Instantiate(BuiltItemPrefab);
-        _ghostBuildItem.GetComponent<BuiltItem>().interest = interest;
-        _ghostBuildItem.GetComponent<BuiltItem>().Machine.Fire(BuiltItem.Trigger.CreateFromPlayer);
-    }
-    
-    private void BuildGhostItem(TriggerParams? triggerParams)
-    {
-        _ghostBuildItem.transform.SetParent(null);
-        _ghostBuildItem = null;
-        OnBuildItem?.Invoke();
-    }
-    
-    private void ClearGhostItem(TriggerParams? triggerParams)
-    {
-        if (_ghostBuildItem != null) Destroy(_ghostBuildItem);
-        _ghostBuildItem = null;
     }
 
 
@@ -181,6 +174,7 @@ public class PlayerControllerNew : MonoBehaviour
                 Instantiate(obstacle, transform.position, _orientation.rotation);
             }
             _stateTmp.text = Machine.State().ToString();
+            _debugBall.position = _lookRayCastPosition;
         }
         
         // Execute behaviors
@@ -200,7 +194,7 @@ public class PlayerControllerNew : MonoBehaviour
             {
                 if (Input.GetKeyDown(KeyCode.E))
                 {
-                    Machine.Fire(Trigger.ToggleInventory);
+                    Machine.Fire(Trigger.PressInteractKey);
                 }
             }
             
@@ -211,7 +205,42 @@ public class PlayerControllerNew : MonoBehaviour
                     Machine.Fire(Trigger.Timeout);
                 }
             }
+            
+            // LookAtGround, LookAtAir
+            {
+                if (_lookRayCastPosition.y < 0.1f)
+                {
+                    Machine.Fire(Trigger.LookAtGround);
+                    
+                }
+                else
+                {
+                    Machine.Fire(Trigger.LookAtAir);
+                }
+            }
         }
+    }
+
+    private void SetGhostItem(TriggerParams? triggerParams)
+    {
+        if (triggerParams is null) return;
+        string interest = ((StringTriggerParam)triggerParams).str;
+        _ghostBuildItem = Instantiate(BuiltItemPrefab);
+        _ghostBuildItem.GetComponent<ConstructController>().interest = interest;
+        _ghostBuildItem.GetComponent<ConstructController>().Machine.Fire(ConstructTrigger.CreateFromPlayer);
+    }
+    
+    private void BuildGhostItem(TriggerParams? triggerParams)
+    {
+        _ghostBuildItem.transform.SetParent(null);
+        _ghostBuildItem = null;
+        OnBuildItem?.Invoke();
+    }
+    
+    private void ClearGhostItem(TriggerParams? triggerParams)
+    {
+        if (_ghostBuildItem != null) Destroy(_ghostBuildItem);
+        _ghostBuildItem = null;
     }
 
     private void OnStartInventoryOpening(TriggerParams? triggerParams)
@@ -257,17 +286,19 @@ public class PlayerControllerNew : MonoBehaviour
     {
         LookBehavior();
         MoveBehavior();
+        FlyBehavior();
     }
 
     void InventoryOpenBehavior()
     {
-        
+        MoveBehavior(0.5f, 0.5f);
     }
     
     void InventoryClosingBehavior()
     {
         MoveBehavior(0.3f, 0.3f);
         LerpVerticalLookAngle(5f);
+        LerpInventoryRotation(inventoryStartRotation);
     }
 
     private void LerpVerticalLookAngle(float angle)
@@ -280,20 +311,40 @@ public class PlayerControllerNew : MonoBehaviour
         
         _cameraHolder.localRotation = Quaternion.Euler(verticalRotation, 0, 0);
     }
+    
+    private void LerpInventoryRotation(float angle)
+    {
+        Vector3 currentEulers = _inventoryModel.transform.localRotation.eulerAngles;
+        var verticalRotation = currentEulers.x;
+
+        verticalRotation =
+            Mathf.Lerp(verticalRotation, angle, Time.deltaTime * inventoryLookAngleSpeed);
+        
+        _inventoryModel.transform.localRotation = Quaternion.Euler(verticalRotation, 0, 0);
+    }
 
     void InventoryOpeningBehavior()
     {
+        LerpInventoryRotation(0);
         MoveBehavior(0.3f, 0.3f);
         LerpVerticalLookAngle(inventoryLookAngle);
     }
 
-    void MovingGhostItemBehavior()
+    void PlanningBuildBehavior()
     {
         LookBehavior();
         MoveBehavior();
-
-        _ghostBuildItem.transform.position = _cameraHolder.position + (_cameraHolder.forward * 4.5f);
-        // _ghostBuildItem.transform.LookAt(transform.position);
+        FlyBehavior();
+    }
+    
+    void CannotBuildBehavior()
+    {
+        _ghostBuildItem.transform.position = _lookRayCastPosition;
+    }
+    
+    void CanBuildBehavior()
+    {
+        GameController.SnapToGrid(_lookRayCastPosition, _ghostBuildItem.transform, _orientation.forward * -1);
     }
 
 
@@ -309,11 +360,20 @@ public class PlayerControllerNew : MonoBehaviour
 
         var horizontalRotation = currentOrientationEulers.y + (lookDelta2.x * Time.deltaTime * lookSpeed);
 
-
         var verticalRotation = currentHolderEulers.x + (lookDelta2.y * Time.deltaTime * lookSpeed) * -1f;
         
         _orientation.localRotation = Quaternion.Euler(0, horizontalRotation, 0);
         _cameraHolder.localRotation = Quaternion.Euler(verticalRotation, 0, _panTiltTarget);
+        
+        if (Physics.Raycast(_cameraHolder.position, _cameraHolder.forward, out var hit, buildDistance,
+                ~LayerMask.NameToLayer("Floor"), QueryTriggerInteraction.Collide))
+        {
+            _lookRayCastPosition = hit.point;
+        }
+        else
+        {
+            _lookRayCastPosition = _cameraHolder.position + _cameraHolder.forward * buildDistance;
+        }
     }
 
     void MoveBehavior(float speedModifier = 1f, float bobSpeedModifier = 1f)
@@ -363,13 +423,17 @@ public class PlayerControllerNew : MonoBehaviour
         InventoryClosingToWorld,
         InventoryClosingToGhostItem,
         InventoryTransition,
-        MovingGhostItem,
+        PlanningBuild,
+        PlanningBuildCanPlace,
+        PlanningBuildCannotPlace,
     }
 
     public enum Trigger
     {
-        ToggleInventory,
+        PressInteractKey,
         Timeout,
         SelectItem,
+        LookAtGround,
+        LookAtAir,
     }
 }

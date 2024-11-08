@@ -20,7 +20,7 @@ public class CustomerController : MonoBehaviour
     private float _timeInState;
     private Vector3 stuckLastPosition;
     private float stuckTimeSinceLastUpdate;
-    private BuiltItem _currentBuiltItem;
+    private ConstructController _currentConstructController;
     
     // Parameters
     public float maxIdleTime = 1f;
@@ -63,7 +63,7 @@ public class CustomerController : MonoBehaviour
 
         // Machine
         {
-            Machine = new Machine<State, Trigger>(State.Searching);
+            Machine = new Machine<State, Trigger>(State.Idle);
             Machine.OnTransitionCompleted(OnTransitionCompleted);
 
             Machine.Configure(State.Searching)
@@ -94,7 +94,8 @@ public class CustomerController : MonoBehaviour
         {
             _behaviors = new Dictionary<State, Action>()
             {
-                { State.Walking, WalkingBehavior }
+                { State.Walking, UpdateAgentDestinationBehavior },
+                { State.AcquiringItem, UpdateAgentDestinationBehavior }
             };
         }
         
@@ -134,6 +135,8 @@ public class CustomerController : MonoBehaviour
             
             _canvas.transform.LookAt(Camera.main.transform);
             _destinationDebug.position = _destination;
+            
+            Debug.DrawLine(transform.position + Vector3.up, _destination, Color.red);
 
         }
         
@@ -182,13 +185,14 @@ public class CustomerController : MonoBehaviour
             
             // Locate
             {
-                foreach (var target in FindObjectsOfType<BuiltItem>())
+                foreach (var target in FindObjectsOfType<ConstructController>())
                 {
                     float distance = Vector3.Distance(transform.position, target.transform.position);
-                    if (distance < sightDistance && interests.Contains(target.interest) && target.Machine.IsInState(BuiltItem.State.Built))
+                    if (distance < sightDistance && interests.Contains(target.interest) && target.Machine.IsInState(ConstructState.Built))
                     {
                         Machine.Fire(Trigger.Locate, new Vector3TriggerParam() { vector3 = target.transform.position });
-                        _currentBuiltItem = target;
+                        _currentConstructController = target;
+                        break;
                     }
                 }
             }
@@ -197,15 +201,15 @@ public class CustomerController : MonoBehaviour
             {
                 if (Machine.IsInState(State.AcquiringItem) && _timeInState > acquireTime)
                 {
-                    Machine.Fire(Trigger.Acquire, new AcquireTriggerParam() { Item = _currentBuiltItem.interest });
+                    Machine.Fire(Trigger.Acquire, new AcquireTriggerParam() { Item = _currentConstructController.interest });
                 }
             }
         }
     }
     
-    void WalkingBehavior()
+    void UpdateAgentDestinationBehavior()
     {
-        _navMeshAgent.SetDestination(_destination);
+        _navMeshAgent.SetDestination(_destination + Vector3.forward * 0.5f);
     }
 
     void UpdateDestination(TriggerParams? triggerParams)
@@ -281,7 +285,7 @@ public class CustomerController : MonoBehaviour
     
     public class CustomerTargetTriggerParam : TriggerParams
     {
-        public BuiltItem BuiltItem = null;
+        public ConstructController ConstructController = null;
     }
     
     public class AcquireTriggerParam : TriggerParams

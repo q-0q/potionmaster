@@ -51,9 +51,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Intensity: 20
-    - _Noise_Scale: 15
-    - _Noise_Speed: 0.1
+    - _Intensity: 30
+    - _Intensity_2: 0.64
+    - _Noise_Scale: 2
+    - _Noise_Speed: 0.6
     - _QueueControl: 0
     - _QueueOffset: 0
     m_Colors:

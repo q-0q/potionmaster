@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using TMPro;
 using Unity.AI.Navigation;
 using UnityEngine;
@@ -11,7 +12,7 @@ using Wasp;
 using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
-public class BuiltItem : MonoBehaviour
+public class BuiltItemOld : MonoBehaviour
 {
     
     // State
@@ -22,6 +23,9 @@ public class BuiltItem : MonoBehaviour
     public float destroyTime = 1f;
     public Material buildMaterial;
     public string interest;
+    public float vibrateStrength;
+    public float vibrateDuration;
+    public int vibrateVibrato;
     
     // Control
     public Machine<State, Trigger> Machine;
@@ -33,6 +37,7 @@ public class BuiltItem : MonoBehaviour
     private TextMeshProUGUI _interestTmp;
     private Material _baseMaterial;
     private Transform _model;
+    private ProgressBar _progressBar;
     
 
     private void Awake()
@@ -44,6 +49,7 @@ public class BuiltItem : MonoBehaviour
             _interestTmp = _canvas.transform.Find("Interest").GetComponent<TextMeshProUGUI>();
             _model = transform.Find("Model");
             _baseMaterial = _model.GetComponentInChildren<Renderer>().material;
+            _progressBar = GetComponentInChildren<ProgressBar>();
         }
 
 
@@ -54,14 +60,19 @@ public class BuiltItem : MonoBehaviour
 
             Machine.Configure(State.Planning)
                 .OnEntry(SetToBuildMaterial)
-                .Permit(Trigger.Build, State.Building);
+                .Permit(Trigger.Interact, State.Building);
 
             Machine.Configure(State.Building)
+                .OnEntry(Vibrate)
+                .OnEntry(ShowProgressBar)
+                .OnExit(HideProgressBar)
                 .Permit(Trigger.Timeout, State.Built);
             
             Machine.Configure(State.Built)
+                .OnEntry(Vibrate)
                 .OnEntry(SetToBaseMaterial)
                 .Permit(Trigger.Destroy, State.Destroying)
+                .Permit(Trigger.Interact, State.Planning)
                 .Permit(Trigger.CreateFromPlayer, State.Planning);
 
             Machine.Configure(State.Destroying)
@@ -79,7 +90,7 @@ public class BuiltItem : MonoBehaviour
         
         // State 
         {
-            
+            HideProgressBar(null);
         }
     }
     
@@ -154,19 +165,45 @@ public class BuiltItem : MonoBehaviour
             r.material = _baseMaterial;
         }
     }
-
-    private void ReceiveBuildSignal()
+    
+    public void Vibrate(TriggerParams? triggerParams)
     {
-        Machine.Fire(Trigger.Build);
+        transform.DOShakePosition(vibrateDuration, vibrateStrength, vibrateVibrato, 90F, false, true,
+            ShakeRandomnessMode.Full);
+    }
+    
+    public void ShowProgressBar(TriggerParams? triggerParams)
+    {
+        _progressBar.gameObject.SetActive(true);
+    }
+
+    public void HideProgressBar(TriggerParams? triggerParams)
+    {
+        _progressBar.gameObject.SetActive(false);
+    }
+
+    private void ReceiveInteractWithSignal(GameObject obj)
+    {
+        Debug.Log(obj.name);
+        if (obj != gameObject) return;
+        
+        Machine.Fire(Trigger.Interact);
     }
 
     private void BuildingBehavior()
     {
         Material material = _model.GetComponentInChildren<Renderer>().material;
-        float f = Mathf.Lerp(material.GetFloat("_Intensity"), 0.1f, Time.deltaTime * 5f);
-        Color c = Color.Lerp(material.GetColor("_Emission"), Color.white, Time.deltaTime * 1f);
-        material.SetColor("_Emission", c);
+        float f = Mathf.Lerp(material.GetFloat("_Intensity"), 0.1f, Time.deltaTime * 5f / buildTime);
+        float f2 = Mathf.Lerp(material.GetFloat("_Intensity_2"), 0.1f, Time.deltaTime * 5f / buildTime);
+        Color c = Color.Lerp(material.GetColor("_Color"), Color.white, Time.deltaTime * 2f / buildTime);
+        material.SetColor("_Color", c);
         material.SetFloat("_Intensity", f);
+        material.SetFloat("_Intensity_2", f2);
+
+        var rawT = _timeInState / buildTime;
+        _progressBar.t = rawT;
+        
+        GameController.SnapToGrid(transform.position, transform, transform.forward);
     }
     
     
@@ -187,17 +224,17 @@ public class BuiltItem : MonoBehaviour
     {
         Timeout,
         CreateFromPlayer,
-        Build,
+        Interact,
         Destroy,
     }
     
     private void OnEnable()
     {
-        PlayerControllerNew.OnBuildItem += ReceiveBuildSignal;
+        PlayerController.OnInteractWithItem += ReceiveInteractWithSignal;
     }
     
     private void OnDisable()
     {
-        PlayerControllerNew.OnBuildItem -= ReceiveBuildSignal;
+        PlayerController.OnInteractWithItem -= ReceiveInteractWithSignal;
     }
 }
